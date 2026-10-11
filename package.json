@@ -1,0 +1,13 @@
+{
+  "name": "buy-wisely-backend",
+  "version": "1.0.0",
+  "description": "Buy Wisely API + static frontend server. Zero external dependencies.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "import": "python3 import_data.py"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
