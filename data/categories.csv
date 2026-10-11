@@ -1,0 +1,5 @@
+id,label,icon,sort_order
+phones,Phones,📱,1
+laptops,Laptops,💻,2
+bikes,Motorbikes,🏍️,3
+cars,Cars,🚗,4
