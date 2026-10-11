@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BUY WISELY — Know What You're Buying</title>
+<meta name="description" content="Compare phones, laptops, motorbikes and cars side by side — real specs, honest trade-offs, and a guided match tool to help you buy wisely.">
+<meta name="theme-color" content="#140E08">
+<link rel="canonical" href="/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚖️</text></svg>">
+<!-- Open Graph / social sharing preview -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Buy Wisely">
+<meta property="og:title" content="BUY WISELY — Know What You're Buying">
+<meta property="og:description" content="Compare phones, laptops, motorbikes and cars side by side — real specs, honest trade-offs, and a guided match tool to help you buy wisely.">
+<meta property="og:image" content="/images/scale-bg.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="BUY WISELY — Know What You're Buying">
+<meta name="twitter:description" content="Compare phones, laptops, motorbikes and cars side by side — real specs, honest trade-offs.">
+<meta name="twitter:image" content="/images/scale-bg.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="dataLoading" style="position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:var(--bg);color:var(--fg-soft);">
+  <div style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(230,214,168,.25);border-top-color:var(--accent);animation:bwspin .8s linear infinite;"></div>
+  <div style="font-size:14px;">Loading catalog…</div>
+</div>
+<style>@keyframes bwspin{to{transform:rotate(360deg);}}</style>
+<div id="dataError" class="hide" style="position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:var(--bg);color:var(--fg);padding:24px;text-align:center;">
+  <div style="font-size:28px;">⚠</div>
+  <div style="font-weight:700;">Couldn't reach the catalog API</div>
+  <div style="color:var(--fg-soft);font-size:14px;max-width:360px;">Make sure the backend is running (<code>node server.js</code> in /backend) and that this page is being served from the same origin, or that API_BASE points at it.</div>
+  <button class="w-btn primary" onclick="location.reload()" style="margin-top:8px;">Retry</button>
+</div>
+
+<div class="scale-hero" aria-hidden="true">
+  <img class="beam-img" alt="" loading="eager" decoding="async" fetchpriority="low" src="images/scale-beam.png">
+  <div class="dark-fade"></div>
+</div>
+
+<header class="top">
+  <div class="wrap topbar">
+    <button class="icon-btn menu-btn" onclick="toggleMobileMenu()">☰</button>
+    <div class="logo"><span class="dot"></span>BUY WISELY</div>
+    <nav class="primary">
+      <a href="#" onclick="go('compare');return false;">Compare</a>
+      <a href="#" onclick="go('ask');return false;">Ask</a>
+      <a href="#" onclick="go('match');return false;">Find My Match</a>
+      <a href="#" onclick="go('home');return false;">Categories</a>
+      <a href="#" onclick="go('home');return false;">Prices</a>
+    </nav>
+    <div class="topright">
+      <button class="icon-btn" onclick="go('ask')" aria-label="Search">⌕</button>
+      <button class="icon-btn" onclick="go('saved')" aria-label="Saved items" style="position:relative;">♡<span id="savedCountBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:var(--accent);color:#1a1206;font-size:10px;font-weight:800;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 4px;">0</span></button>
+      <button id="loginBtn" class="login-btn" onclick="showAuthModal('login')">Log in</button>
+    </div>
+  </div>
+  <div id="mobileMenu" class="hide" style="border-top:1px solid var(--border); padding:14px 20px 18px; display:flex; flex-direction:column; gap:2px;">
+    <a href="#" onclick="go('compare');return false;" style="padding:10px 0; font-weight:600;">Compare</a>
+    <a href="#" onclick="go('ask');return false;" style="padding:10px 0; font-weight:600;">Ask</a>
+    <a href="#" onclick="go('match');return false;" style="padding:10px 0; font-weight:600;">Find My Match</a>
+    <a href="#" onclick="go('saved');return false;" style="padding:10px 0; font-weight:600;">Saved</a>
+    <a href="#" onclick="go('home');return false;" style="padding:10px 0; font-weight:600;">Categories</a>
+    <a href="#" onclick="go('home');return false;" style="padding:10px 0; font-weight:600;">Prices</a>
+  </div>
+</header>
+
+<!-- ============ HOME ============ -->
+<div id="view-home" class="view">
+  <div class="home-dark-zone">
+  <div class="wrap">
+    <section class="hero">
+      <h1>Know what<br>you're buying.</h1>
+      <p class="sub">Compare. Understand. Choose.</p>
+      <div class="search-shell">
+        <div class="search-box">
+          <span style="color:var(--fg-soft)">⌕</span>
+          <input id="heroSearch" placeholder="What do you want to compare, understand or find?" autocomplete="off" oninput="renderSuggest(this.value)" onkeydown="if(event.key==='Enter')runSearch(this.value)">
+          <button onclick="runSearch(document.getElementById('heroSearch').value)">Search</button>
+        </div>
+        <div id="suggestPanel"></div>
+      </div>
+      <div class="search-hints">
+        <span class="hint-chip" onclick="runSearch('iPhone 17 Pro Max vs Galaxy S26 Ultra')">iPhone 17 Pro Max vs Galaxy S26 Ultra</span>
+        <span class="hint-chip" onclick="runSearch('What is RAM?')">What is RAM?</span>
+        <span class="hint-chip" onclick="runSearch('Best laptop under Rs.150,000 for programming')">Best laptop for programming</span>
+        <span class="hint-chip" onclick="runSearch('Toyota Corolla vs Honda Civic')">Toyota Corolla vs Honda Civic</span>
+      </div>
+    </section>
+
+    <section class="engines">
+      <div class="engine-card compare" onclick="go('compare')">
+        <div class="glyph">⚖</div>
+        <h3>Compare</h3>
+        <p>Compare products, specifications, prices and variants side by side.</p>
+        <span class="go">Start Comparing →</span>
+      </div>
+      <div class="engine-card ask" onclick="go('ask')">
+        <div class="glyph">?</div>
+        <h3>Ask</h3>
+        <p>Get easy explanations, buying advice and answers to your questions.</p>
+        <span class="go" style="color:#E0B341">Ask Now →</span>
+      </div>
+      <div class="engine-card match" onclick="go('match')">
+        <div class="glyph">◎</div>
+        <h3>Find My Match</h3>
+        <p>Tell us your budget and how you'll use it — we'll explain what fits.</p>
+        <span class="go" style="color:#8FB86C">Find My Match →</span>
+      </div>
+    </section>
+  </div>
+  </div>
+
+  <div class="wrap">
+
+    <section class="block">
+      <div class="section-head"><h2>Trending comparisons</h2><a class="link" href="#" onclick="go('compare');return false;">See all →</a></div>
+      <div id="trendGrid" class="trend-row"></div>
+    </section>
+
+    <div class="ad-zone" id="adZone1"><span class="tag">ADVERTISEMENT</span><div>Sponsored placement — clearly labeled, never ranked into results.</div></div>
+
+    <section class="block">
+      <div class="section-head"><h2>Popular categories</h2></div>
+      <div id="catGrid" class="cat-grid"></div>
+    </section>
+
+    <section class="block">
+      <div class="section-head"><h2>Understand before you buy</h2><a class="link" href="#" onclick="go('ask');return false;">Browse all terms →</a></div>
+      <div id="qGrid" class="q-grid"></div>
+    </section>
+
+    <div class="ad-zone" id="adZone2"><span class="tag">SPONSORED</span><div>Ad zone — visually separated from product data and comparisons.</div></div>
+  </div>
+</div>
+
+<!-- ============ COMPARE ============ -->
+<div id="view-compare" class="view hide">
+  <div class="wrap">
+    <div class="crumb"><span class="crumb-left"><a href="#" onclick="go('home');return false;">Home</a> / Compare</span><button class="back-btn" onclick="goBack()"><span class="arrow">←</span>Back</button></div>
+    <h1 style="font-size:26px;font-weight:800;letter-spacing:-0.01em;">Compare products</h1>
+    <p style="color:var(--fg-soft);margin-top:6px;font-size:14.5px;">Pick two products from the same category to see specs, prices and differences side by side.</p>
+
+    <div class="compare-pick">
+      <div class="pick-slot">
+        <div class="lbl">Product A</div>
+        <select id="cmpA" onchange="renderCompare()"></select>
+      </div>
+      <div class="pick-vs">VS</div>
+      <div class="pick-slot">
+        <div class="lbl">Product B</div>
+        <select id="cmpB" onchange="renderCompare()"></select>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+      <button class="w-btn" onclick="copyShareLink(this,'compare',document.getElementById('cmpA').value+','+document.getElementById('cmpB').value)">🔗 Copy link to this comparison</button>
+    </div>
+
+    <div id="compareOut"></div>
+    <div class="source-note" style="margin-top:18px;"><span>Source: manufacturer listings · Not independently verified</span><span>Mock data — prototype build</span></div>
+  </div>
+</div>
+
+<!-- ============ ASK ============ -->
+<div id="view-ask" class="view hide">
+  <div class="wrap">
+    <div class="crumb"><span class="crumb-left"><a href="#" onclick="go('home');return false;">Home</a> / Ask</span><button class="back-btn" onclick="goBack()"><span class="arrow">←</span>Back</button></div>
+    <h1 style="font-size:26px;font-weight:800;text-align:center;letter-spacing:-0.01em;">What do you want to understand?</h1>
+    <p style="color:var(--fg-soft);text-align:center;margin-top:6px;font-size:14.5px;">A free, built-in explanation database — no jargon, plain language.</p>
+    <div class="search-box ask-search" style="margin-top:26px;">
+      <span style="color:var(--fg-soft)">⌕</span>
+      <input id="askSearch" placeholder="e.g. What is RAM? What does torque mean?" oninput="renderTerms(this.value)">
+    </div>
+    <div id="catTabs" class="cat-tabs" style="justify-content:center;"></div>
+    <div id="termGrid" class="term-grid"></div>
+  </div>
+</div>
+
+<!-- ============ FIND MY MATCH ============ -->
+<div id="view-match" class="view hide">
+  <div class="wrap">
+    <div class="crumb"><span class="crumb-left"><a href="#" onclick="go('home');return false;">Home</a> / Find My Match</span><button class="back-btn" onclick="goBack()"><span class="arrow">←</span>Back</button></div>
+    <div class="wizard">
+      <div class="w-progress" id="wProgress"></div>
+      <div id="wizardBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PRODUCT DETAIL ============ -->
+<div id="view-product" class="view hide">
+  <div class="wrap" id="productOut"></div>
+</div>
+
+<!-- ============ SAVED ============ -->
+<div id="view-saved" class="view hide">
+  <div class="wrap">
+    <div class="crumb"><span class="crumb-left"><a href="#" onclick="go('home');return false;">Home</a> / Saved</span><button class="back-btn" onclick="goBack()"><span class="arrow">←</span>Back</button></div>
+    <h1 style="font-size:26px;font-weight:800;letter-spacing:-0.01em;">Saved products</h1>
+    <p style="color:var(--fg-soft);margin-top:6px;font-size:14.5px;">Kept on this device only — saved items live in this browser's storage, not an account.</p>
+    <div id="savedEmpty" class="hide" style="margin-top:34px;text-align:center;color:var(--fg-soft);">
+      <div style="font-size:34px;">♡</div>
+      <p style="margin-top:10px;">Nothing saved yet. Tap "♡ Save" on any product to keep it here.</p>
+    </div>
+    <div id="savedGrid" class="trend-row" style="grid-template-columns:repeat(2,1fr); margin-top:28px;"></div>
+  </div>
+</div>
+
+<div id="view-reset" class="view hide">
+  <div class="wrap">
+    <div class="crumb"><span class="crumb-left"><a href="#" onclick="go('home');return false;">Home</a> / Reset password</span></div>
+    <h1 style="font-size:26px;font-weight:800;letter-spacing:-0.01em;">Set a new password</h1>
+    <div id="resetFormBody" style="margin-top:20px;"></div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="col" style="max-width:260px;">
+      <div class="logo" style="color:#fff;"><span class="dot"></span>BUY WISELY</div>
+      <p style="font-size:13px;color:#9aa0aa;margin-top:12px;line-height:1.6;">A place to check before you spend serious money. Compare, understand, choose — across phones, laptops, motorbikes and cars.</p>
+    </div>
+    <div class="col"><h4>Explore</h4><a href="#" onclick="go('compare');return false;">Compare</a><a href="#" onclick="go('ask');return false;">Ask</a><a href="#" onclick="go('match');return false;">Find My Match</a></div>
+    <div class="col"><h4>Categories</h4><a href="#" onclick="go('home');return false;">Phones</a><a href="#" onclick="go('home');return false;">Laptops</a><a href="#" onclick="go('home');return false;">Motorbikes</a><a href="#" onclick="go('home');return false;">Cars</a></div>
+    <div class="col"><h4>Trust</h4><a href="#" onclick="showTrustInfo('source');return false;">How we source data</a><a href="#" onclick="showTrustInfo('affiliate');return false;">Affiliate disclosure</a><a href="#" onclick="showCorrectionForm();return false;">Corrections</a></div>
+    <div class="col"><h4>Legal</h4><a href="/legal/privacy.html" target="_blank" rel="noopener">Privacy Policy</a><a href="/legal/terms.html" target="_blank" rel="noopener">Terms of Service</a><a href="/legal/cookies.html" target="_blank" rel="noopener">Cookie Policy</a></div>
+  </div>
+  <div class="bottom">Prototype build — mock data for demonstration only. Not a live product database.</div>
+</footer>
+
+<div id="popoverRoot"></div>
+
+<script src="js/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# ads.txt — Authorized Digital Sellers
+#
+# Most ad networks (including Google AdSense) require this file at your
+# site's root (https://yourdomain.com/ads.txt) before they'll serve ads
+# or pay out — it's how they prove to advertisers that your site is an
+# authorized seller of its own ad inventory.
+#
+# This file is a placeholder. Once you've signed up with an ad network,
+# they will give you an exact line to paste here, typically looking like:
+#
+#   google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0
+#
+# Do not invent this line yourself — it must come from your network's
+# own dashboard and match your actual publisher ID (see AD_CONFIG in
+# index.html), or ads will not serve correctly.
