@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corrections — Buy Wisely Admin</title>
+<style>
+  :root{ --ink:#120C07; --accent:#C6981F; --bg:#140E08; --panel:rgba(32,22,12,.55);
+    --fg:#F3E9D4; --fg-soft:#B9A583; --border:rgba(210,160,70,.35); --good:#8FB86C; --bad:#E27272; --warn:#D18A4A; }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--fg); font-family:'Inter',system-ui,-apple-system,sans-serif; line-height:1.5;}
+  .wrap{max-width:820px; margin:0 auto; padding:24px 18px 80px;}
+  .nav{display:flex; gap:14px; font-size:13px; margin-bottom:10px;}
+  .nav a{color:var(--accent); text-decoration:none;}
+  h1{font-size:22px; margin:14px 0 4px;}
+  h2{font-size:15px; color:var(--fg-soft); text-transform:uppercase; letter-spacing:.03em; margin:28px 0 12px;}
+  .sub{color:var(--fg-soft); font-size:13px; margin-bottom:20px;}
+  .keybar{display:flex; gap:8px; margin-bottom:24px;}
+  input{flex:1; padding:11px 14px; border-radius:10px; border:1px solid var(--border); background:rgba(0,0,0,.25); color:var(--fg); font-size:14.5px;}
+  button{padding:10px 16px; border-radius:9px; border:1px solid var(--border); background:var(--accent); color:#1a1206; font-weight:700; cursor:pointer; font-size:13.5px;}
+  .hide{display:none !important;}
+  .err{color:#ff8a8a; font-size:13px; margin-top:8px;}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:12px;}
+  .crow{display:flex; justify-content:space-between; gap:10px; align-items:flex-start;}
+  .msg{font-size:14.5px; margin:6px 0;}
+  .meta{font-size:12px; color:var(--fg-soft);}
+  select{padding:7px 10px; border-radius:8px; border:1px solid var(--border); background:rgba(0,0,0,.3); color:var(--fg); font-size:12.5px;}
+  .badge{font-size:10.5px; padding:2px 8px; border-radius:7px; font-weight:700; text-transform:uppercase;}
+  .badge.open{background:rgba(209,138,74,.18); color:var(--warn);}
+  .badge.reviewed{background:rgba(198,152,31,.18); color:var(--accent);}
+  .badge.applied{background:rgba(143,184,108,.18); color:var(--good);}
+  .badge.rejected{background:rgba(226,114,114,.18); color:var(--bad);}
+  .empty{color:var(--fg-soft); font-size:13.5px;}
+  .resetRow{display:flex; justify-content:space-between; align-items:center; font-size:13px; padding:8px 0; border-top:1px solid var(--border);}
+  .resetRow:first-child{border-top:none;}
+  .copyBtn{background:transparent; border:1px solid var(--border); color:var(--accent); padding:4px 10px; font-size:11.5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"><a href="/">← Site</a><a href="/admin/products.html">Products</a><a href="/admin/analytics.html">Analytics</a></div>
+  <h1>Corrections &amp; Account Admin</h1>
+  <div class="sub">Review reported data corrections, and hand out pending password-reset links until real email sending is connected.</div>
+
+  <div class="keybar">
+    <input id="keyInput" type="password" placeholder="Your ADMIN_KEY">
+    <button onclick="unlock()">View</button>
+  </div>
+  <div id="keyErr" class="err hide"></div>
+
+  <div id="app" class="hide">
+    <h2>Corrections</h2>
+    <div id="correctionsOut"></div>
+
+    <h2>Pending password resets</h2>
+    <div class="sub" style="margin-top:-6px;">Only shows links that are still valid and haven't been used yet.</div>
+    <div class="card" id="resetsOut"></div>
+  </div>
+</div>
+
+<script>
+let KEY = '';
+function statusOptions(current){
+  return ['open','reviewed','applied','rejected'].map(s=>`<option value="${s}" ${s===current?'selected':''}>${s}</option>`).join('');
+}
+
+async function unlock(){
+  KEY = document.getElementById('keyInput').value.trim();
+  const errEl = document.getElementById('keyErr');
+  errEl.classList.add('hide');
+  try{
+    await loadCorrections();
+    await loadResets();
+    sessionStorage.setItem('bw_admin_key', KEY);
+    document.getElementById('app').classList.remove('hide');
+  }catch(e){
+    errEl.textContent = e.message;
+    errEl.classList.remove('hide');
+  }
+}
+
+async function api(path){
+  const sep = path.includes('?') ? '&' : '?';
+  const res = await fetch(`${path}${sep}key=${encodeURIComponent(KEY)}`);
+  if(!res.ok){ const d = await res.json().catch(()=>({})); throw new Error(d.error || `Request failed (${res.status})`); }
+  return res.json();
+}
+
+async function loadCorrections(){
+  const items = await api('/api/admin/corrections');
+  const out = document.getElementById('correctionsOut');
+  if(items.length===0){ out.innerHTML = '<div class="empty">No corrections submitted yet.</div>'; return; }
+  out.innerHTML = items.map(c=>`
+    <div class="card">
+      <div class="crow">
+        <div>
+          <div class="meta">${c.product_name ? c.product_name : '(no specific product)'} ${c.field?`· field: ${c.field}`:''}</div>
+          <div class="msg">${c.message.replace(/</g,'&lt;')}</div>
+          <div class="meta">${c.submitted_by ? `from ${c.submitted_by} · ` : ''}${c.created_at}</div>
+        </div>
+        <div style="text-align:right;">
+          <span class="badge ${c.status}">${c.status}</span><br>
+          <select style="margin-top:8px;" onchange="updateStatus(${c.id}, this.value)">${statusOptions(c.status)}</select>
+        </div>
+      </div>
+    </div>`).join('');
+}
+async function updateStatus(id, status){
+  await fetch(`/api/admin/corrections/${id}?key=${encodeURIComponent(KEY)}`, {
+    method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status}),
+  });
+  await loadCorrections();
+}
+
+async function loadResets(){
+  const items = await api('/api/admin/password-resets');
+  const out = document.getElementById('resetsOut');
+  if(items.length===0){ out.innerHTML = '<div class="empty">No pending reset requests.</div>'; return; }
+  out.innerHTML = items.map(r=>{
+    const link = `${location.origin}/#reset/${r.token}`;
+    return `<div class="resetRow">
+      <div><strong>${r.email}</strong><div class="meta">requested ${r.created_at} · expires ${r.expires_at}</div></div>
+      <button class="copyBtn" onclick="navigator.clipboard.writeText('${link}');this.textContent='Copied ✓';">Copy link</button>
+    </div>`;
+  }).join('');
+}
+
+const saved = sessionStorage.getItem('bw_admin_key');
+if(saved){ document.getElementById('keyInput').value = saved; unlock(); }
+</script>
+</body>
+</html>

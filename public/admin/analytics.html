@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analytics — Buy Wisely</title>
+<style>
+  :root{ --ink:#120C07; --accent:#C6981F; --bg:#140E08; --panel:rgba(32,22,12,.55);
+    --fg:#F3E9D4; --fg-soft:#B9A583; --border:rgba(210,160,70,.35); --good:#8FB86C; }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--fg); font-family:'Inter',system-ui,-apple-system,sans-serif; line-height:1.5;}
+  .wrap{max-width:720px; margin:0 auto; padding:28px 20px 60px;}
+  h1{font-size:22px; margin:0 0 4px;}
+  .sub{color:var(--fg-soft); font-size:13px; margin-bottom:22px;}
+  .keybar{display:flex; gap:8px; margin-bottom:26px;}
+  input{flex:1; padding:11px 14px; border-radius:10px; border:1px solid var(--border); background:rgba(0,0,0,.25); color:var(--fg); font-size:14.5px;}
+  button{padding:11px 18px; border-radius:10px; border:1px solid var(--border); background:var(--accent); color:#1a1206; font-weight:700; cursor:pointer;}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; margin-bottom:16px;}
+  .card h2{font-size:14px; text-transform:uppercase; letter-spacing:.04em; color:var(--fg-soft); margin:0 0 12px;}
+  .big{font-size:32px; font-weight:800;}
+  .row{display:flex; justify-content:space-between; padding:7px 0; border-top:1px solid var(--border); font-size:14px;}
+  .row:first-child{border-top:none;}
+  .err{color:#ff8a8a; font-size:13.5px; margin-top:8px; display:none;}
+  .hide{display:none;}
+  a.back{color:var(--accent); text-decoration:none; font-size:13px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;gap:14px;font-size:13px;margin-bottom:4px;">
+    <a class="back" href="/">← Site</a>
+    <a class="back" href="/admin/products.html">Products</a>
+    <a class="back" href="/admin/corrections.html">Corrections</a>
+  </div>
+  <h1 style="margin-top:14px;">Analytics</h1>
+  <div class="sub">Self-hosted — no third-party account, nothing leaves your own server.</div>
+
+  <div class="keybar">
+    <input id="keyInput" type="password" placeholder="Your ADMIN_KEY">
+    <button onclick="load()">View</button>
+  </div>
+  <div id="err" class="err"></div>
+
+  <div id="out" class="hide">
+    <div class="card">
+      <h2>Total pageviews</h2>
+      <div class="big" id="totalViews">—</div>
+    </div>
+    <div class="card">
+      <h2>Views by section</h2>
+      <div id="byView"></div>
+    </div>
+    <div class="card">
+      <h2>Top viewed products</h2>
+      <div id="topProducts"></div>
+    </div>
+    <div class="card">
+      <h2>Last 7 days</h2>
+      <div id="last7"></div>
+    </div>
+    <div class="card">
+      <h2>Affiliate clicks ("View deal")</h2>
+      <div id="clickouts"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function row(label, value){ return `<div class="row"><span>${label}</span><strong>${value}</strong></div>`; }
+
+async function load(){
+  const key = document.getElementById('keyInput').value.trim();
+  const errEl = document.getElementById('err');
+  errEl.style.display = 'none';
+  if(!key){ errEl.textContent = 'Enter your ADMIN_KEY (the one you set as an environment variable on the server).'; errEl.style.display='block'; return; }
+  sessionStorage.setItem('bw_admin_key', key);
+
+  try{
+    const [summaryRes, clickoutsRes] = await Promise.all([
+      fetch(`/api/analytics/summary?key=${encodeURIComponent(key)}`),
+      fetch(`/api/analytics/clickouts?key=${encodeURIComponent(key)}`),
+    ]);
+    if(!summaryRes.ok || !clickoutsRes.ok){
+      const d = await summaryRes.json().catch(()=>({}));
+      errEl.textContent = d.error || 'Wrong key, or the server has no ADMIN_KEY set.';
+      errEl.style.display = 'block';
+      return;
+    }
+    const summary = await summaryRes.json();
+    const clickouts = await clickoutsRes.json();
+
+    document.getElementById('totalViews').textContent = summary.totalViews;
+    document.getElementById('byView').innerHTML = summary.byView.length
+      ? summary.byView.map(v=>row(v.view, v.views)).join('')
+      : '<div class="row"><span>No data yet</span></div>';
+
+    // Resolve product names for the top-products list
+    const topRows = await Promise.all(summary.topProducts.map(async tp=>{
+      try{
+        const p = await fetch(`/api/products/${tp.product_id}`).then(r=>r.ok?r.json():null);
+        return row(p ? `${p.brand} ${p.name}` : tp.product_id, tp.views);
+      }catch(e){ return row(tp.product_id, tp.views); }
+    }));
+    document.getElementById('topProducts').innerHTML = topRows.length ? topRows.join('') : '<div class="row"><span>No product views yet</span></div>';
+
+    document.getElementById('last7').innerHTML = summary.last7Days.length
+      ? summary.last7Days.map(d=>row(d.day, d.views)).join('')
+      : '<div class="row"><span>No data in the last 7 days</span></div>';
+
+    document.getElementById('clickouts').innerHTML = clickouts.length
+      ? clickouts.map(c=>row(c.name, `${c.clicks} click${c.clicks===1?'':'s'}`)).join('')
+      : '<div class="row"><span>No affiliate clicks yet</span></div>';
+
+    document.getElementById('out').classList.remove('hide');
+  }catch(e){
+    errEl.textContent = "Couldn't reach the server.";
+    errEl.style.display = 'block';
+  }
+}
+
+// Remember the key for this browser session so you don't retype it every visit
+const saved = sessionStorage.getItem('bw_admin_key');
+if(saved){ document.getElementById('keyInput').value = saved; load(); }
+</script>
+</body>
+</html>

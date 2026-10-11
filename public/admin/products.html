@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Product Admin — Buy Wisely</title>
+<style>
+  :root{ --ink:#120C07; --accent:#C6981F; --bg:#140E08; --panel:rgba(32,22,12,.55);
+    --fg:#F3E9D4; --fg-soft:#B9A583; --border:rgba(210,160,70,.35); --good:#8FB86C; --bad:#E27272; }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--fg); font-family:'Inter',system-ui,-apple-system,sans-serif; line-height:1.5;}
+  .wrap{max-width:900px; margin:0 auto; padding:24px 18px 80px;}
+  a.back{color:var(--accent); text-decoration:none; font-size:13px;}
+  h1{font-size:22px; margin:14px 0 4px;}
+  .sub{color:var(--fg-soft); font-size:13px; margin-bottom:20px;}
+  .keybar{display:flex; gap:8px; margin-bottom:24px;}
+  input,select,textarea{width:100%; padding:10px 13px; border-radius:9px; border:1px solid var(--border); background:rgba(0,0,0,.25); color:var(--fg); font-size:14px; font-family:inherit;}
+  button{padding:10px 16px; border-radius:9px; border:1px solid var(--border); background:var(--accent); color:#1a1206; font-weight:700; cursor:pointer; font-size:14px;}
+  button.secondary{background:transparent; color:var(--fg);}
+  button.danger{background:transparent; color:var(--bad); border-color:var(--bad);}
+  .hide{display:none !important;}
+  .err{color:#ff8a8a; font-size:13px; margin-top:8px;}
+  .toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:10px; flex-wrap:wrap;}
+  .toolbar input[type=text]{max-width:240px;}
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  th,td{text-align:left; padding:10px 8px; border-bottom:1px solid var(--border); vertical-align:middle;}
+  th{color:var(--fg-soft); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.03em;}
+  tr.inactive{opacity:.45;}
+  td.thumb img{width:40px; height:40px; object-fit:cover; border-radius:8px; background:rgba(255,255,255,.05);}
+  td.thumb .noimg{width:40px; height:40px; border-radius:8px; background:rgba(255,255,255,.05); display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--fg-soft);}
+  .rowbtn{background:none; border:none; color:var(--accent); cursor:pointer; font-size:12.5px; padding:2px 6px; font-weight:700;}
+  .rowbtn.danger{color:var(--bad);}
+  .badge{font-size:10.5px; padding:2px 7px; border-radius:7px; font-weight:700;}
+  .badge.on{background:rgba(143,184,108,.18); color:var(--good);}
+  .badge.off{background:rgba(226,114,114,.18); color:var(--bad);}
+
+  /* Form panel */
+  #formPanel{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:20px; margin-bottom:24px;}
+  #formPanel h2{font-size:16px; margin:0 0 14px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .field{margin-bottom:10px;}
+  .field label{display:block; font-size:12px; color:var(--fg-soft); margin-bottom:4px;}
+  #specFields{margin-top:6px; padding-top:12px; border-top:1px dashed var(--border);}
+  #specFields .grid2{gap:10px;}
+  .imgRow{display:flex; gap:12px; align-items:center;}
+  .imgRow img{width:56px; height:56px; object-fit:cover; border-radius:10px; background:rgba(255,255,255,.05);}
+  .formActions{display:flex; gap:10px; margin-top:16px;}
+  datalist{}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;gap:14px;font-size:13px;margin-bottom:4px;">
+    <a class="back" href="/">← Site</a>
+    <a class="back" href="/admin/analytics.html">Analytics</a>
+    <a class="back" href="/admin/corrections.html">Corrections</a>
+  </div>
+  <h1>Product Admin</h1>
+  <div class="sub">Add, edit, or retire products — real photos and specs, no CSV editing required.</div>
+
+  <div class="keybar">
+    <input id="keyInput" type="password" placeholder="Your ADMIN_KEY">
+    <button onclick="unlock()">Unlock</button>
+  </div>
+  <div id="keyErr" class="err hide"></div>
+
+  <div id="app" class="hide">
+    <div id="formPanel" class="hide"></div>
+
+    <div class="toolbar">
+      <button onclick="showForm()">+ Add product</button>
+      <input type="text" id="searchBox" placeholder="Filter by name or brand…" oninput="renderTable()">
+    </div>
+
+    <table>
+      <thead><tr><th></th><th>Product</th><th>Category</th><th>Price</th><th>Status</th><th></th></tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div id="emptyMsg" class="sub hide" style="margin-top:20px;">No products match.</div>
+  </div>
+</div>
+
+<datalist id="brandList"></datalist>
+
+<script>
+const ADMIN_KEY_SESSION = 'bw_admin_key';
+let KEY = '';
+let PRODUCTS = [];
+let CATEGORIES = [];
+let BRANDS = [];
+let editingId = null; // null = add mode
+
+/* ===================== Category spec schema =====================
+ * Mirrors backend/import_data.py's build_specs_*() functions exactly —
+ * same field keys, same labels — so products added here produce the
+ * identical quick_specs/full_specs JSON shape as CSV-imported ones. If
+ * you ever add a category via import_data.py, mirror it here too. */
+const CATEGORY_FIELDS = {
+  phones: [
+    ['display','Display'], ['processor','Processor'], ['ram','RAM'], ['storage','Storage'],
+    ['battery','Battery'], ['weight','Weight'], ['operating_system','Operating system'],
+    ['cameras','Cameras'], ['charging','Charging'], ['connectivity','Connectivity'], ['colors','Colors'],
+  ],
+  laptops: [
+    ['display','Display'], ['processor','Processor'], ['gpu','GPU (leave blank if integrated)'],
+    ['ram','RAM'], ['storage','Storage'], ['battery','Battery'], ['weight','Weight'],
+    ['build_material','Build material'], ['operating_system','Operating system'], ['ports','Ports'],
+  ],
+  bikes: [
+    ['engine','Engine'], ['horsepower','Horsepower'], ['torque','Torque'], ['transmission','Transmission'],
+    ['fuel_capacity','Fuel capacity'], ['top_speed','Top speed'], ['fuel_economy','Fuel economy'],
+    ['brakes','Brakes'], ['tire_size','Tire size'], ['seat_height','Seat height'],
+    ['ground_clearance','Ground clearance'], ['weight','Weight'], ['colors','Colors'],
+  ],
+  cars: [
+    ['engine','Engine'], ['horsepower','Horsepower'], ['torque','Torque'], ['transmission','Transmission'],
+    ['drivetrain','Drivetrain'], ['fuel_economy','Fuel economy'], ['seats','Seats'],
+    ['airbags','Airbags'], ['adas','ADAS'], ['infotainment','Infotainment'],
+  ],
+};
+function buildSpecs(cat, f){
+  if(cat==='phones') return {
+    quick: { Display:f.display, Processor:f.processor, RAM:f.ram, Storage:f.storage, Battery:f.battery, Weight:f.weight },
+    full: {
+      Overview: { Display:f.display, Weight:f.weight, Colors:f.colors },
+      Performance: { Processor:f.processor, RAM:f.ram, Storage:f.storage, 'Operating system':f.operating_system },
+      Camera: { Cameras:f.cameras },
+      Battery: { Battery:f.battery, Charging:f.charging },
+      Connectivity: { Connectivity:f.connectivity },
+    }
+  };
+  if(cat==='laptops'){
+    const perf = { Processor:f.processor, RAM:f.ram, Storage:f.storage, 'Operating system':f.operating_system };
+    if(f.gpu && f.gpu.trim()) perf.GPU = f.gpu;
+    return {
+      quick: { Display:f.display, Processor:f.processor, RAM:f.ram, Storage:f.storage, Battery:f.battery, Weight:f.weight },
+      full: {
+        Overview: { Display:f.display, Weight:f.weight, 'Build material':f.build_material },
+        Performance: perf,
+        Battery: { Battery:f.battery },
+        Ports: { Ports:f.ports },
+      }
+    };
+  }
+  if(cat==='bikes') return {
+    quick: { Engine:(f.engine||'').split(',')[0], Horsepower:f.horsepower, Transmission:f.transmission, 'Fuel economy':f.fuel_economy, Weight:f.weight, 'Seat height':f.seat_height },
+    full: {
+      Overview: { Engine:f.engine, Transmission:f.transmission, 'Fuel capacity':f.fuel_capacity },
+      Performance: { Horsepower:f.horsepower, Torque:f.torque, 'Top speed':f.top_speed, 'Fuel economy':f.fuel_economy },
+      Chassis: { Brakes:f.brakes, 'Tire size':f.tire_size, 'Seat height':f.seat_height, 'Ground clearance':f.ground_clearance },
+      Details: { Weight:f.weight, Colors:f.colors },
+    }
+  };
+  if(cat==='cars') return {
+    quick: { Engine:f.engine, Horsepower:f.horsepower, Transmission:f.transmission, 'Fuel economy':f.fuel_economy, Seats:f.seats, Airbags:f.airbags },
+    full: {
+      Overview: { Engine:f.engine, Transmission:f.transmission, Drivetrain:f.drivetrain },
+      Performance: { Horsepower:f.horsepower, Torque:f.torque, 'Fuel economy':f.fuel_economy },
+      Safety: { Airbags:f.airbags, ADAS:f.adas },
+      Comfort: { Seating:`${f.seats} seats`, Infotainment:f.infotainment },
+    }
+  };
+  return { quick:{}, full:{} };
+}
+// Reverse: flatten a product's quick+specs back into flat form fields for editing
+function flattenSpecs(p){
+  const flat = {};
+  Object.entries(p.quick||{}).forEach(([k,v])=>flat[k]=v);
+  Object.values(p.specs||{}).forEach(section=>Object.entries(section||{}).forEach(([k,v])=>flat[k]=v));
+  const out = {};
+  const fields = CATEGORY_FIELDS[p.cat] || [];
+  fields.forEach(([key,label])=>{ if(flat[label]!=null) out[key]=flat[label]; });
+  if(p.cat==='cars' && p.quick && p.quick.Seats!=null) out.seats = p.quick.Seats; // prefer the raw number over "N seats"
+  return out;
+}
+
+async function api(path, opts){
+  const sep = path.includes('?') ? '&' : '?';
+  const res = await fetch(`${path}${sep}key=${encodeURIComponent(KEY)}`, opts);
+  if(!res.ok){ const d = await res.json().catch(()=>({})); throw new Error(d.error || `Request failed (${res.status})`); }
+  return res.json();
+}
+
+async function unlock(){
+  KEY = document.getElementById('keyInput').value.trim();
+  const errEl = document.getElementById('keyErr');
+  errEl.classList.add('hide');
+  try{
+    const [products, cats, brands] = await Promise.all([
+      api('/api/admin/products'),
+      fetch('/api/categories').then(r=>r.json()),
+      api('/api/admin/brands'),
+    ]);
+    PRODUCTS = products; CATEGORIES = cats; BRANDS = brands;
+    sessionStorage.setItem(ADMIN_KEY_SESSION, KEY);
+    document.getElementById('brandList').innerHTML = BRANDS.map(b=>`<option value="${b.name}">`).join('');
+    document.getElementById('app').classList.remove('hide');
+    renderTable();
+  }catch(e){
+    errEl.textContent = e.message;
+    errEl.classList.remove('hide');
+  }
+}
+
+function renderTable(){
+  const q = (document.getElementById('searchBox').value || '').toLowerCase();
+  const rows = PRODUCTS.filter(p => !q || p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q));
+  document.getElementById('emptyMsg').classList.toggle('hide', rows.length>0);
+  document.getElementById('tableBody').innerHTML = rows.map(p=>`
+    <tr class="${p.isActive?'':'inactive'}">
+      <td class="thumb">${p.image ? `<img src="/${p.image}">` : `<div class="noimg">—</div>`}</td>
+      <td><strong>${p.brand} ${p.name}</strong><div style="color:var(--fg-soft);font-size:11.5px;">${p.id}</div></td>
+      <td>${p.cat}</td>
+      <td>${p.currency} ${Number(p.price).toLocaleString()}</td>
+      <td><span class="badge ${p.isActive?'on':'off'}">${p.isActive?'Active':'Inactive'}</span></td>
+      <td style="white-space:nowrap;">
+        <button class="rowbtn" onclick="showForm('${p.id}')">Edit</button>
+        ${p.isActive
+          ? `<button class="rowbtn danger" onclick="deactivate('${p.id}')">Deactivate</button>`
+          : `<button class="rowbtn" onclick="restore('${p.id}')">Restore</button>`}
+      </td>
+    </tr>`).join('');
+}
+
+function showForm(id){
+  editingId = id || null;
+  const p = id ? PRODUCTS.find(x=>x.id===id) : null;
+  const panel = document.getElementById('formPanel');
+  panel.classList.remove('hide');
+  panel.innerHTML = `
+    <h2>${p ? `Edit ${p.brand} ${p.name}` : 'Add a new product'}</h2>
+    <div id="formErr" class="err hide"></div>
+    <div class="grid2">
+      <div class="field"><label>Category</label>
+        <select id="f_cat" onchange="renderSpecFields()" ${p?'disabled':''}>
+          ${CATEGORIES.map(c=>`<option value="${c.id}" ${p&&p.cat===c.id?'selected':''}>${c.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Product ID (unique, e.g. honda-cd-125)</label>
+        <input id="f_id" value="${p?p.id:''}" ${p?'disabled':''} placeholder="brand-model-slug">
+      </div>
+      <div class="field"><label>Brand</label>
+        <input id="f_brand" list="brandList" value="${p?p.brand:''}" placeholder="Honda">
+      </div>
+      <div class="field"><label>Model name</label>
+        <input id="f_name" value="${p?p.name:''}" placeholder="CD 125">
+      </div>
+      <div class="field"><label>Price</label>
+        <input id="f_price" type="number" value="${p?p.price:''}" placeholder="285000">
+      </div>
+      <div class="field"><label>Currency</label>
+        <input id="f_currency" value="${p?p.currency:'PKR'}">
+      </div>
+      <div class="field"><label>Color swatch (hex)</label>
+        <input id="f_color" value="${p?p.color:'#2b2b2e'}">
+      </div>
+      <div class="field"><label>Affiliate / "View deal" URL (optional)</label>
+        <input id="f_affiliate" value="${p&&p.affiliateUrl?p.affiliateUrl:''}">
+      </div>
+      <div class="field"><label>Source name</label>
+        <input id="f_sourceName" value="${p&&p.source?p.source.name||'':''}" placeholder="Manual entry">
+      </div>
+      <div class="field"><label>Source URL (optional)</label>
+        <input id="f_sourceUrl" value="${p&&p.source?p.source.url||'':''}">
+      </div>
+    </div>
+    <div class="field">
+      <label>Photo</label>
+      <div class="imgRow">
+        <img id="f_imgPreview" src="${p&&p.image?'/'+p.image:''}" style="${p&&p.image?'':'visibility:hidden;'}">
+        <input id="f_imgFile" type="file" accept="image/jpeg,image/png,image/webp" onchange="previewImage(event)">
+      </div>
+    </div>
+    <div id="specFields"></div>
+    <div class="formActions">
+      <button onclick="saveProduct()">${p?'Save changes':'Add product'}</button>
+      <button class="secondary" onclick="hideForm()">Cancel</button>
+    </div>
+  `;
+  renderSpecFields(p ? flattenSpecs(p) : {});
+  panel.scrollIntoView({ behavior:'smooth' });
+}
+function hideForm(){ document.getElementById('formPanel').classList.add('hide'); editingId=null; }
+
+let pendingImageDataUri = null;
+function previewImage(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    pendingImageDataUri = reader.result;
+    const img = document.getElementById('f_imgPreview');
+    img.src = reader.result;
+    img.style.visibility = 'visible';
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderSpecFields(prefill){
+  prefill = prefill || {};
+  const cat = document.getElementById('f_cat').value;
+  const fields = CATEGORY_FIELDS[cat] || [];
+  document.getElementById('specFields').innerHTML = `
+    <div style="font-size:12px;color:var(--fg-soft);margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em;">Specs</div>
+    <div class="grid2">
+      ${fields.map(([key,label])=>`
+        <div class="field"><label>${label}</label>
+          <input id="spec_${key}" value="${prefill[key]!=null?String(prefill[key]).replace(/"/g,'&quot;'):''}">
+        </div>`).join('')}
+    </div>`;
+}
+
+async function saveProduct(){
+  const errEl = document.getElementById('formErr');
+  errEl.classList.add('hide');
+  const cat = document.getElementById('f_cat').value;
+  const fields = CATEGORY_FIELDS[cat] || [];
+  const flat = {};
+  fields.forEach(([key])=>{ flat[key] = document.getElementById(`spec_${key}`).value.trim(); });
+  const { quick, full } = buildSpecs(cat, flat);
+
+  const payload = {
+    id: editingId || document.getElementById('f_id').value.trim(),
+    cat,
+    brand: document.getElementById('f_brand').value.trim(),
+    name: document.getElementById('f_name').value.trim(),
+    price: Number(document.getElementById('f_price').value),
+    currency: document.getElementById('f_currency').value.trim() || 'PKR',
+    color: document.getElementById('f_color').value.trim(),
+    affiliateUrl: document.getElementById('f_affiliate').value.trim(),
+    sourceName: document.getElementById('f_sourceName').value.trim(),
+    sourceUrl: document.getElementById('f_sourceUrl').value.trim(),
+    quick, specs: full,
+  };
+  if(pendingImageDataUri) payload.imageDataUri = pendingImageDataUri;
+
+  try{
+    if(editingId){
+      await api(`/api/admin/products/${editingId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    } else {
+      await api('/api/admin/products', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    }
+    pendingImageDataUri = null;
+    await refreshAndClose();
+  }catch(e){
+    errEl.textContent = e.message;
+    errEl.classList.remove('hide');
+  }
+}
+async function deactivate(id){
+  if(!confirm('Deactivate this product? It will disappear from the live site but can be restored later.')) return;
+  await api(`/api/admin/products/${id}`, { method:'DELETE' });
+  await refreshAndClose();
+}
+async function restore(id){
+  await api(`/api/admin/products/${id}/restore`, { method:'POST' });
+  await refreshAndClose();
+}
+async function refreshAndClose(){
+  PRODUCTS = await api('/api/admin/products');
+  BRANDS = await api('/api/admin/brands');
+  document.getElementById('brandList').innerHTML = BRANDS.map(b=>`<option value="${b.name}">`).join('');
+  hideForm();
+  renderTable();
+}
+
+const saved = sessionStorage.getItem(ADMIN_KEY_SESSION);
+if(saved){ document.getElementById('keyInput').value = saved; unlock(); }
+</script>
+</body>
+</html>
